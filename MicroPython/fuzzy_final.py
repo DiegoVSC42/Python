@@ -1,5 +1,5 @@
 #importação de bibliotecas
-from machine import Pin
+from machine import Pin, PWM
 from machine import Timer
 from hcsr04 import HCSR04
 import machine
@@ -14,10 +14,12 @@ intervalo_devagar = 500 #500ms
 
 #Define os pinos ao qual os sensores e o led/buzzer estão ligados
 LED = machine.Pin(2, machine.Pin.OUT)
+buzzer = PWM(Pin(12), freq=440*6, duty=0)  # freq é a frequência em Hz
 sensor_distancia = HCSR04(trigger_pin=21, echo_pin=22, echo_timeout_us=1000000)
-#sensor_altura = HCSR04(trigger_pin=25, echo_pin=26, echo_timeout_us=1000000)
+sensor_altura = HCSR04(trigger_pin=25, echo_pin=26, echo_timeout_us=1000000)
 
 led_state = 0  # 0 for off, 1 for on
+
 
 #funcoes de pertinencia para o sensor de distancia
 #Com 4 conjuntos difusos
@@ -124,13 +126,22 @@ def defuzzy(regras,pesos):
         
     return intervalo
 
+# Função para tocar o buzzer
+def tocar_buzzer(intervalo):
+    # Ativar o buzzer
+    buzzer.duty(500)  # ajuste o valor conforme necessário
+    time.sleep(intervalo / 1000.0)  # converter para segundos
+    buzzer.duty(0)
+    
 def timer0_callback(timer):
     global led_state
     
     distancia = sensor_distancia.distance_cm()
-    #altura = sensor_altura.distance_cm()
+    altura = sensor_altura.distance_cm()
+    
+    #Testes manuais
     #distancia = 42
-    altura = 0;
+    #altura = 0;
     
     regras, pesos = fuzzy(altura,distancia)
     
@@ -139,12 +150,17 @@ def timer0_callback(timer):
     if intervalo != 0:
         if led_state == 0:
             LED.value(1)
+            buzzer.duty(500)
             led_state = 1
         else:
             LED.value(0)
+            buzzer.duty(0)
             led_state = 0
-        timer0.init(period=intervalo, mode=Timer.PERIODIC, callback=timer0_callback)  # Double the speed
-    
+        timer0.init(period=intervalo, mode=Timer.PERIODIC, callback=timer0_callback)
+    if intervalo == 0:
+        LED.value(0)
+        buzzer.duty(0)
+        led_state = 0
     print('Distancia: {}cm'.format(round(distancia, 2)))
     print('Altura: {}cm'.format(round(altura, 2)))
     print('Velocidade: {}ms'.format(round(intervalo, 2)))
